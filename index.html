@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rota">
+<title>Joe's Rota Extractor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #0d0f14;
+    --surface:  #151820;
+    --card:     #1c2030;
+    --border:   #2a2f42;
+    --accent:   #4f8ef7;
+    --accent2:  #f7a24f;
+    --green:    #4fc98a;
+    --red:      #f7614f;
+    --text:     #e8ecf4;
+    --muted:    #6b7394;
+    --mono:     'DM Mono', monospace;
+    --sans:     'Syne', sans-serif;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bot: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100dvh;
+    padding-top: max(var(--safe-top), 16px);
+    padding-bottom: calc(var(--safe-bot) + 16px);
+    padding-left: 16px;
+    padding-right: 16px;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding-top: 8px;
+  }
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+  .logo span { color: var(--accent); }
+  .settings-btn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.15s;
+  }
+  .settings-btn:active { transform: scale(0.93); background: var(--border); }
+
+  /* ── STEP INDICATORS ── */
+  .steps {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 28px;
+  }
+  .step-dot {
+    height: 3px;
+    flex: 1;
+    border-radius: 99px;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+  .step-dot.active { background: var(--accent); }
+  .step-dot.done   { background: var(--green); }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    font-family: var(--mono);
+  }
+
+  /* ── INPUTS ── */
+  input[type="text"], input[type="password"], input[type="date"] {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 13px 14px;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+  }
+  input:focus { border-color: var(--accent); }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); }
+
+  /* ── UPLOAD ZONE ── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .upload-zone:active { border-color: var(--accent); background: #1a1f32; }
+  .upload-zone.has-image { border-style: solid; border-color: var(--accent); }
+  .upload-zone img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    opacity: 0.6;
+    border-radius: 12px;
+  }
+  .upload-zone .upload-overlay {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 8px;
+  }
+  .upload-icon { font-size: 40px; }
+  .upload-text { font-size: 14px; font-weight: 600; color: var(--muted); }
+  .upload-sub  { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  #fileInput   { display: none; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    width: 100%;
+    padding: 16px;
+    border-radius: 12px;
+    border: none;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+    transform: none;
+  }
+  .btn-secondary {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-green  { background: var(--green); color: #0d1a11; }
+  .btn-orange { background: var(--accent2); color: #1a0d00; }
+  .btn-sm {
+    width: auto; padding: 10px 16px;
+    font-size: 13px; border-radius: 9px;
+  }
+
+  /* ── OUTPUT AREA ── */
+  .output-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 50vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .output-box .day-header {
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .output-box .sleep-tag   { color: var(--accent2); }
+  .output-box .diploma-tag { color: var(--green); }
+  .output-box .flag-tag    { color: var(--red); }
+
+  /* ── ICAL PREVIEW ── */
+  .ical-event {
+    background: var(--surface);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .ical-event.sleep { border-left-color: var(--accent2); }
+  .ical-event.diploma { border-left-color: var(--green); }
+
+  /* ── LOADING ── */
+  .loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 32px 0;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* ── SETTINGS PANEL ── */
+  .settings-panel {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: flex-end;
+  }
+  .settings-panel.open { display: flex; }
+  .settings-inner {
+    background: var(--card);
+    border-radius: 20px 20px 0 0;
+    padding: 24px 20px;
+    padding-bottom: calc(var(--safe-bot) + 24px);
+    width: 100%;
+    border-top: 1px solid var(--border);
+    animation: slideUp 0.25s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } }
+  .settings-handle {
+    width: 36px; height: 4px;
+    background: var(--border);
+    border-radius: 99px;
+    margin: 0 auto 20px;
+  }
+  .settings-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+  .input-label {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: block;
+  }
+  .key-status {
+    font-size: 12px;
+    font-family: var(--mono);
+    margin-top: 8px;
+  }
+  .key-status.ok  { color: var(--green); }
+  .key-status.bad { color: var(--red); }
+
+  /* ── SECTION VISIBILITY ── */
+  .section { display: none; }
+  .section.visible { display: block; }
+
+  /* ── DIVIDER ── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0;
+  }
+
+  /* ── SUMMARY BAR ── */
+  .summary-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .summary-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 10px;
+    text-align: center;
+  }
+  .summary-val {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .summary-key {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+  }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: calc(var(--safe-bot) + 20px);
+    left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--green);
+    color: #0d1a11;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 12px 20px;
+    border-radius: 99px;
+    white-space: nowrap;
+    z-index: 200;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">Rota<span>.</span></div>
+  <div class="settings-btn" onclick="openSettings()">⚙️</div>
+</div>
+
+<div class="steps">
+  <div class="step-dot active" id="dot1"></div>
+  <div class="step-dot" id="dot2"></div>
+  <div class="step-dot" id="dot3"></div>
+</div>
+
+<!-- ── STEP 1: UPLOAD ── -->
+<div class="section visible" id="step1">
+  <div class="card">
+    <div class="card-label">Week Start Date</div>
+    <input type="date" id="weekDate">
+  </div>
+
+  <div class="card">
+    <div class="card-label">Rota Photo</div>
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+      <div class="upload-overlay">
+        <div class="upload-icon">📷</div>
+        <div class="upload-text">Tap to take or upload photo</div>
+        <div class="upload-sub">Camera · Photos · Files</div>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" capture="environment">
+  </div>
+
+  <button class="btn btn-primary" id="extractBtn" onclick="extractShifts()" disabled>
+    <span>🔍</span> Extract My Shifts
+  </button>
+
+  <div style="height:10px"></div>
+  <button class="btn btn-secondary" onclick="openSettings()">
+    <span>🔑</span> Set API Key
+  </button>
+</div>
+
+<!-- ── STEP 2: REVIEW ── -->
+<div class="section" id="step2">
+  <div class="card">
+    <div class="card-label">Extracted Shifts — Review Carefully</div>
+    <div class="output-box" id="outputBox">Extracting…</div>
+  </div>
+
+  <div class="summary-bar" id="summaryBar" style="display:none">
+    <div class="summary-item">
+      <div class="summary-val" id="sumHours">—</div>
+      <div class="summary-key">hours</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-val" id="sumSleeps">—</div>
+      <div class="summary-key">sleeps</div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-val" id="sumPay">—</div>
+      <div class="summary-key">est. pay</div>
+    </div>
+  </div>
+
+  <button class="btn btn-green" id="confirmBtn" onclick="goToStep3()" style="margin-bottom:10px">
+    <span>✅</span> Looks correct — Generate iCal
+  </button>
+  <button class="btn btn-secondary" onclick="goBack()">
+    <span>←</span> Re-upload photo
+  </button>
+</div>
+
+<!-- ── STEP 3: ICAL ── -->
+<div class="section" id="step3">
+  <div class="card">
+    <div class="card-label">iCal Events Ready</div>
+    <div id="icalPreview"></div>
+  </div>
+
+  <button class="btn btn-green" id="downloadBtn" onclick="downloadIcal()" style="margin-bottom:10px">
+    <span>📅</span> Download .ics File
+  </button>
+  <button class="btn btn-orange" onclick="copySummary()" style="margin-bottom:10px">
+    <span>📋</span> Copy Weekly Summary Text
+  </button>
+  <button class="btn btn-secondary" onclick="startOver()">
+    <span>+</span> New Week
+  </button>
+</div>
+
+<!-- ── SETTINGS PANEL ── -->
+<div class="settings-panel" id="settingsPanel" onclick="closeSettingsOutside(event)">
+  <div class="settings-inner">
+    <div class="settings-handle"></div>
+    <div class="settings-title">API Key</div>
+    <label class="input-label">Anthropic API Key (starts with sk-ant-)</label>
+    <input type="password" id="apiKeyInput" placeholder="sk-ant-api…" oninput="validateKey()">
+    <div class="key-status" id="keyStatus"></div>
+    <div class="divider"></div>
+    <p style="font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:16px; font-family:var(--mono)">
+      Get your key at <strong style="color:var(--accent)">console.anthropic.com</strong><br>
+      Create account → API Keys → New Key<br>
+      ~1–2p per rota photo analysed
+    </p>
+    <button class="btn btn-primary" onclick="saveKey()">Save Key</button>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let apiKey = '';
+let imageBase64 = '';
+let imageType = '';
+let extractedText = '';
+let parsedEvents = [];
+
+// ── Set today's monday as default date ──
+(function(){
+  const d = new Date();
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  document.getElementById('weekDate').value = d.toISOString().split('T')[0];
+})();
+
+// ── File upload ────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  imageType = file.type || 'image/jpeg';
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    imageBase64 = ev.target.result.split(',')[1];
+    const zone = document.getElementById('uploadZone');
+    zone.classList.add('has-image');
+    zone.innerHTML = `
+      <img src="${ev.target.result}" alt="rota">
+      <div class="upload-overlay">
+        <div style="font-size:28px">✅</div>
+        <div class="upload-text" style="color:#4fc98a">Photo loaded</div>
+        <div class="upload-sub">Tap to change</div>
+      </div>`;
+    checkReady();
+  };
+  reader.readAsDataURL(file);
+});
+
+function checkReady(){
+  const hasKey = apiKey.length > 10;
+  const hasImg = imageBase64.length > 0;
+  const btn = document.getElementById('extractBtn');
+  btn.disabled = !(hasKey && hasImg);
+  if (!hasKey) btn.textContent = '🔑 Set API key first';
+  else if (!hasImg) btn.textContent = '📷 Upload photo first';
+  else { btn.innerHTML = '<span>🔍</span> Extract My Shifts'; }
+}
+
+// ── Settings ───────────────────────────────────────────────────────────
+function openSettings(){
+  document.getElementById('settingsPanel').classList.add('open');
+  if (apiKey) document.getElementById('apiKeyInput').value = apiKey;
+}
+function closeSettings(){
+  document.getElementById('settingsPanel').classList.remove('open');
+}
+function closeSettingsOutside(e){
+  if (e.target === document.getElementById('settingsPanel')) closeSettings();
+}
+function validateKey(){
+  const v = document.getElementById('apiKeyInput').value.trim();
+  const s = document.getElementById('keyStatus');
+  if (!v) { s.textContent=''; return; }
+  if (v.startsWith('sk-ant-')) {
+    s.className='key-status ok'; s.textContent='✓ Valid format';
+  } else {
+    s.className='key-status bad'; s.textContent='✗ Should start with sk-ant-';
+  }
+}
+function saveKey(){
+  const v = document.getElementById('apiKeyInput').value.trim();
+  if (!v.startsWith('sk-ant-')) {
+    showToast('Key must start with sk-ant-', true); return;
+  }
+  apiKey = v;
+  closeSettings();
+  showToast('API key saved ✓');
+  checkReady();
+}
+
+// ── Framework system prompt ─────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are analysing rota photos for JOE only.
+
+GOAL: Read rota images week by week. Extract ONLY Joe's relevant work items. Output a plain text list for checking before any iCal or totals are created.
+
+IDENTITY RULES:
+- My name is JOE. Do NOT treat JON as JOE.
+- Only count entries that clearly say JOE.
+- My initials JP in orange boxes mean training days.
+
+WHAT TO EXTRACT:
+1. Standard shifts
+   - DAYTIME 8-5 column: If JOE appears, extract day shift: Start=08:00, End=17:00
+   - EVENING 5-11 column: If JOE appears, extract evening shift: Start=17:00, End=23:00
+
+2. 3PM start rule
+   - Only use 15:00-23:00 if JOE is in the SAME PHYSICAL BOX as the text 3PM.
+   - If 3PM appears in a nearby box or another person's box, ignore it for Joe.
+   - Never assign Joe a 3PM start unless JOE and 3PM are together in the same box.
+
+3. Diploma shifts
+   - If Joe's shift box contains DIP or Diploma: count as paid shift, default 08:00-17:00, label as Diploma.
+
+4. Training
+   - Orange boxes with JP are Joe's training days.
+   - Default training time = 10:00-15:00 unless another time is explicitly written.
+   - Training is its own event even if it overlaps another shift.
+
+5. Meetings
+   - If a meeting is written with explicit times, use those exact times.
+   - Example: Team meeting 10:30-12:30
+
+SLEEP RULES:
+6. If JOE appears in the Sleep-In column: count 1 sleep. Sleep is paid separately and NOT counted in hours. Attach Sleep to the relevant day. If sleep appears without a clearly attached shift, flag it with [CHECK].
+
+RESIDENTIAL RULES:
+7. Friday-start residential:
+   - Friday=08:00-23:00+sleep, Saturday=08:00-23:00+sleep, Sunday=08:00-23:00+sleep, Monday=08:00-17:00+no sleep
+
+8. Monday-start residential:
+   - Monday=08:00-23:00+sleep, Tuesday=08:00-23:00+sleep, Wednesday=08:00-23:00+sleep, Thursday=08:00-23:00+sleep, Friday=08:00-17:00+no sleep
+
+HOURS:
+- Day 08:00-17:00 = 9h, Evening 17:00-23:00 = 6h, 3PM 15:00-23:00 = 8h, Long day 08:00-23:00 = 15h, Training 10:00-15:00 = 5h, Sleeps = 0h
+
+RULES:
+- Do not guess blurry names as Joe.
+- Do not use nearby 3PM labels unless in Joe's exact box.
+- Do not mix Joe with other staff.
+
+OUTPUT FORMAT — plain text list only, grouped by day. Example:
+Mon 9 Mar - 08:00-17:00
+Tue 10 Mar - Team meeting 10:30-12:30
+Wed 11 Mar - 08:00-17:00 (Diploma)
+Wed 11 Mar - 17:00-23:00
+Sat 14 Mar - 08:00-23:00 (Sleep)
+
+If unsure about anything, append [CHECK: your question] on that line.
+After the list, output a line: TOTALS: Xh worked, Y sleeps`;
+
+// ── Extract shifts ──────────────────────────────────────────────────────
+async function extractShifts(){
+  const weekDate = document.getElementById('weekDate').value;
+  if (!weekDate){ showToast('Please select a week date'); return; }
+
+  showStep(2);
+  document.getElementById('outputBox').innerHTML = `<div class="loading">
+    <div class="spinner"></div>
+    <div class="loading-text">Analysing your rota…</div>
+  </div>`;
+  document.getElementById('summaryBar').style.display = 'none';
+  document.getElementById('confirmBtn').style.display = 'none';
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-20250514',
+        max_tokens: 2000,
+        system: SYSTEM_PROMPT,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: imageType, data: imageBase64 }
+            },
+            {
+              type: 'text',
+              text: `Please analyse this rota photo. The week starts ${weekDate}. Extract only Joe's shifts and output the plain text list as instructed.`
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!resp.ok){
+      const err = await resp.json();
+      throw new Error(err.error?.message || `API error ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    extractedText = data.content[0].text;
+    renderOutput(extractedText);
+
+  } catch(e){
+    document.getElementById('outputBox').innerHTML =
+      `<span style="color:var(--red)">❌ Error: ${e.message}</span>`;
+    document.getElementById('confirmBtn').style.display = 'none';
+  }
+}
+
+function renderOutput(text){
+  // Syntax highlight the output
+  const escaped = text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  const highlighted = escaped
+    .replace(/(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d+\s+\w+/g,
+      m => `<span class="day-header">${m}</span>`)
+    .replace(/\(Sleep\)/gi,
+      m => `<span class="sleep-tag">${m}</span>`)
+    .replace(/\(Diploma\)/gi,
+      m => `<span class="diploma-tag">${m}</span>`)
+    .replace(/\[CHECK[^\]]*\]/gi,
+      m => `<span class="flag-tag">${m}</span>`);
+
+  document.getElementById('outputBox').innerHTML = highlighted;
+
+  // Parse totals
+  const totalsMatch = text.match(/TOTALS?:\s*(\d+(?:\.\d+)?)h?\s+worked[,\s]+(\d+)\s+sleep/i);
+  if (totalsMatch){
+    const hrs = parseFloat(totalsMatch[1]);
+    const slps = parseInt(totalsMatch[2]);
+    const pay = (hrs * 12.54 + slps * 70.50).toFixed(0);
+    document.getElementById('sumHours').textContent = hrs;
+    document.getElementById('sumSleeps').textContent = slps;
+    document.getElementById('sumPay').textContent = `£${pay}`;
+    document.getElementById('summaryBar').style.display = 'grid';
+  }
+
+  document.getElementById('confirmBtn').style.display = 'flex';
+}
+
+// ── Parse events from text ──────────────────────────────────────────────
+function parseEventsFromText(text, weekStartStr){
+  const events = [];
+  const weekStart = new Date(weekStartStr);
+  const dayMap = { mon:0, tue:1, wed:2, thu:3, fri:4, sat:5, sun:6 };
+
+  const lines = text.split('\n').filter(l => l.trim());
+  for (const line of lines){
+    if (line.startsWith('TOTAL')) break;
+
+    // Match: "Mon 9 Mar - 08:00-17:00 (optional tag)"
+    const m = line.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\d+)\s+(\w+)\s+-\s+(\d{2}:\d{2})-(\d{2}:\d{2})(.*)/i);
+    if (!m) continue;
+
+    const [, dayStr,,, startT, endT, rest] = m;
+    const offset = dayMap[dayStr.toLowerCase()];
+    if (offset === undefined) continue;
+
+    const evDate = new Date(weekStart);
+    evDate.setDate(weekStart.getDate() + offset);
+
+    const isSleep   = /sleep/i.test(rest);
+    const isDiploma = /diploma/i.test(rest);
+    const isTraining= /training/i.test(rest);
+    const isMeeting = /meeting/i.test(rest);
+    const isResidential = /residential/i.test(rest);
+
+    let title = 'Work Shift';
+    if (isDiploma)   title = 'Diploma Day';
+    else if (isTraining) title = 'Training Day';
+    else if (isMeeting)  title = 'Team Meeting';
+    else if (isResidential) title = 'Residential';
+    else if (startT==='08:00' && endT==='17:00') title = 'Day Shift';
+    else if (startT==='17:00' && endT==='23:00') title = 'Evening Shift';
+    else if (startT==='15:00' && endT==='23:00') title = '3PM Evening Shift';
+    else if (startT==='08:00' && endT==='23:00') title = 'Long Day';
+
+    const startDt = new Date(evDate);
+    const [sh,sm] = startT.split(':').map(Number);
+    startDt.setHours(sh,sm,0,0);
+
+    const endDt = new Date(evDate);
+    const [eh,em] = endT.split(':').map(Number);
+    endDt.setHours(eh,em,0,0);
+
+    const hrs = (endDt - startDt) / 3600000;
+    const pay = (hrs * 12.54 + (isSleep ? 70.50 : 0)).toFixed(2);
+
+    events.push({ title, date: evDate, startDt, endDt, startT, endT, hrs, isSleep, isDiploma, isTraining, pay });
+  }
+  return events;
+}
+
+// ── Step 3: generate iCal ───────────────────────────────────────────────
+function goToStep3(){
+  const weekDate = document.getElementById('weekDate').value;
+  parsedEvents = parseEventsFromText(extractedText, weekDate);
+  renderIcalPreview();
+  showStep(3);
+}
+
+function renderIcalPreview(){
+  const container = document.getElementById('icalPreview');
+  if (!parsedEvents.length){
+    container.innerHTML = '<p style="color:var(--muted);font-size:13px">No events could be parsed. Check the output above.</p>';
+    return;
+  }
+  let html = '';
+  for (const ev of parsedEvents){
+    const cls = ev.isSleep ? 'sleep' : ev.isDiploma ? 'diploma' : '';
+    const icon = ev.isSleep ? '🌙' : ev.isDiploma ? '🎓' : ev.isTraining ? '📚' : '💼';
+    html += `<div class="ical-event ${cls}">
+      ${icon} <strong>${ev.title}</strong><br>
+      ${ev.date.toDateString()} · ${ev.startT}–${ev.endT}<br>
+      ${ev.hrs}h · ${ev.isSleep ? '+ sleep £70.50 · ' : ''}Est. £${ev.pay}
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+// ── iCal file generation ────────────────────────────────────────────────
+function toIcsDate(d){
+  return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+}
+
+function downloadIcal(){
+  if (!parsedEvents.length){ showToast('No events to export', true); return; }
+
+  let ics = `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Joe Rota App//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n`;
+
+  let totalHrs = 0, totalSleeps = 0, totalPay = 0;
+
+  for (const ev of parsedEvents){
+    const uid = `${Date.now()}-${Math.random().toString(36).substr(2,8)}@rota`;
+    const hrs = ev.hrs;
+    const sleepPay = ev.isSleep ? 70.50 : 0;
+    const dayPay = hrs * 12.54 + sleepPay;
+    totalHrs += hrs;
+    if (ev.isSleep) totalSleeps++;
+    totalPay += dayPay;
+
+    let desc = `${ev.startT}–${ev.endT} (${hrs}h)`;
+    if (ev.isSleep) desc += ` + Sleep (£70.50)`;
+    desc += `\\nEst. pay: £${dayPay.toFixed(2)}`;
+
+    ics += `BEGIN:VEVENT\r\n`;
+    ics += `UID:${uid}\r\n`;
+    ics += `DTSTART:${toIcsDate(ev.startDt)}\r\n`;
+    ics += `DTEND:${toIcsDate(ev.endDt)}\r\n`;
+    ics += `SUMMARY:${ev.title}\r\n`;
+    ics += `DESCRIPTION:${desc}\r\n`;
+    ics += `END:VEVENT\r\n`;
+  }
+
+  // Weekly summary event — Sunday 23:50
+  const weekDate = new Date(document.getElementById('weekDate').value);
+  const sunday = new Date(weekDate);
+  sunday.setDate(weekDate.getDate() + 6);
+  sunday.setHours(23, 50, 0, 0);
+  const summaryEnd = new Date(sunday);
+  summaryEnd.setMinutes(59);
+
+  const summaryText = `Week ${weekDate.toLocaleDateString('en-GB')} summary:\\n` +
+    `Hours: ${totalHrs}h\\nSleeps: ${totalSleeps}\\nEst. pay: £${totalPay.toFixed(2)}\\n` +
+    `(Hourly: £${(totalHrs*12.54).toFixed(2)} + Sleeps: £${(totalSleeps*70.50).toFixed(2)})`;
+
+  ics += `BEGIN:VEVENT\r\n`;
+  ics += `UID:summary-${Date.now()}@rota\r\n`;
+  ics += `DTSTART:${toIcsDate(sunday)}\r\n`;
+  ics += `DTEND:${toIcsDate(summaryEnd)}\r\n`;
+  ics += `SUMMARY:📊 Week Summary — £${totalPay.toFixed(2)}\r\n`;
+  ics += `DESCRIPTION:${summaryText}\r\n`;
+  ics += `END:VEVENT\r\n`;
+
+  ics += `END:VCALENDAR\r\n`;
+
+  const blob = new Blob([ics], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rota-week-${document.getElementById('weekDate').value}.ics`;
+  a.click();
+  showToast('iCal downloaded ✓');
+}
+
+// ── Copy summary ────────────────────────────────────────────────────────
+function copySummary(){
+  let totalHrs = 0, totalSleeps = 0, totalPay = 0;
+  for (const ev of parsedEvents){
+    totalHrs += ev.hrs;
+    if (ev.isSleep) totalSleeps++;
+    totalPay += ev.hrs * 12.54 + (ev.isSleep ? 70.50 : 0);
+  }
+  const weekDate = new Date(document.getElementById('weekDate').value);
+  const text = `Week of ${weekDate.toLocaleDateString('en-GB')}\n` +
+    `Hours worked: ${totalHrs}h\nSleep-ins: ${totalSleeps}\n` +
+    `Hourly pay: £${(totalHrs*12.54).toFixed(2)}\nSleep pay: £${(totalSleeps*70.50).toFixed(2)}\n` +
+    `Total estimated: £${totalPay.toFixed(2)}`;
+  navigator.clipboard?.writeText(text).then(() => showToast('Copied ✓'))
+    .catch(() => showToast('Copy failed — try manual select', true));
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────
+function showStep(n){
+  ['step1','step2','step3'].forEach((id,i) => {
+    document.getElementById(id).classList.toggle('visible', i+1===n);
+  });
+  ['dot1','dot2','dot3'].forEach((id,i) => {
+    const dot = document.getElementById(id);
+    dot.classList.toggle('active', i+1===n);
+    dot.classList.toggle('done', i+1<n);
+  });
+}
+function goBack(){ showStep(1); }
+function startOver(){
+  imageBase64=''; imageType=''; extractedText=''; parsedEvents=[];
+  document.getElementById('uploadZone').classList.remove('has-image');
+  document.getElementById('uploadZone').innerHTML = `
+    <div class="upload-overlay">
+      <div class="upload-icon">📷</div>
+      <div class="upload-text">Tap to take or upload photo</div>
+      <div class="upload-sub">Camera · Photos · Files</div>
+    </div>`;
+  document.getElementById('fileInput').value='';
+  checkReady();
+  showStep(1);
+}
+
+// ── Toast ───────────────────────────────────────────────────────────────
+function showToast(msg, isError=false){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isError ? 'var(--red)' : 'var(--green)';
+  t.style.color = isError ? '#fff' : '#0d1a11';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>
