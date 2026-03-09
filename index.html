@@ -386,7 +386,7 @@
         <div class="upload-sub">Camera · Photos · Files</div>
       </div>
     </div>
-    <input type="file" id="fileInput" accept="image/*" capture="environment">
+    <input type="file" id="fileInput" accept="image/*">
   </div>
 
   <button class="btn btn-primary" id="extractBtn" onclick="extractShifts()" disabled>
@@ -465,13 +465,7 @@
 
     <div class="divider"></div>
 
-    <label class="input-label">Google Sheets API Key</label>
-    <input type="password" id="sheetsKeyInput" placeholder="AIza…">
-    <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:8px 0 16px; font-family:var(--mono)">
-      console.cloud.google.com → APIs & Services → Credentials
-    </p>
-
-    <button class="btn btn-primary" onclick="saveKey()">Save All Keys</button>
+    <button class="btn btn-primary" onclick="saveKey()">Save Key</button>
   </div>
 </div>
 
@@ -893,13 +887,13 @@ function copySummary(){
 }
 
 // ── Send to Google Sheets ───────────────────────────────────────────────
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzPPULLLkVsYu6woB-5m7ODW8CE8gJPGbQwD9D5cijXdpZBQiZ7TVCYi2m8GQ7L4X7A/exec';
+
 async function sendToSheets(){
-  if (!sheetsKey){ showToast('Add Google Sheets API key in ⚙️ settings', true); return; }
   if (!parsedEvents.length){ showToast('No events to send', true); return; }
 
   showToast('Sending to Google Sheets…');
 
-  // Build rows to append — matching DAILY LOG columns A-O
   const rows = parsedEvents.map(ev => {
     const dateStr = ev.date.toLocaleDateString('en-GB');
     const day = ev.date.toLocaleDateString('en-GB', { weekday: 'short' });
@@ -911,44 +905,28 @@ async function sendToSheets(){
     const hourlyPay = (hrs * 12.54).toFixed(2);
     const sleepPay  = (sleeps * 70.50).toFixed(2);
     const totalPay  = (parseFloat(hourlyPay) + parseFloat(sleepPay)).toFixed(2);
-
     let desc = '';
     if (ev.isDiploma) desc = 'Diploma';
     else if (ev.isTraining) desc = 'Training';
     else if (ev.isSleep) desc = 'Sleep-in';
-
     return [
-      dateStr,       // A Date
-      day,           // B Day
-      wkStr,         // C Week Commencing
-      'Auto',        // D Source
-      ev.title,      // E Shift Category
-      desc,          // F Description
-      ev.startT,     // G Start Time
-      ev.endT,       // H End Time
-      hrs,           // I Hours Worked
-      sleeps,        // J Sleeps
-      12.54,         // K Hourly Rate
-      hourlyPay,     // L Hourly Pay
-      70.50,         // M Sleep Rate
-      sleepPay,      // N Sleep Pay
-      totalPay       // O Total Pay
+      dateStr, day, wkStr, 'Auto', ev.title, desc,
+      ev.startT, ev.endT, hrs, sleeps,
+      12.54, hourlyPay, 70.50, sleepPay, totalPay
     ];
   });
 
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_NAME + '!A:O')}:append?valueInputOption=USER_ENTERED&key=${sheetsKey}`;
-
   try {
-    const resp = await fetch(url, {
+    const resp = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values: rows })
+      body: JSON.stringify({ rows })
     });
-    if (!resp.ok){
-      const err = await resp.json();
-      throw new Error(err.error?.message || `HTTP ${resp.status}`);
+    const result = await resp.json();
+    if (result.success){
+      showToast(`✓ ${result.added} rows added to Google Sheets!`);
+    } else {
+      throw new Error(result.error || 'Unknown error');
     }
-    showToast(`✓ ${rows.length} rows added to Google Sheets!`);
   } catch(e){
     showToast(`Sheets error: ${e.message}`, true);
   }
