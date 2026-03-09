@@ -542,7 +542,6 @@ function checkReady(){
 function openSettings(){
   document.getElementById('settingsPanel').classList.add('open');
   if (apiKey) document.getElementById('apiKeyInput').value = apiKey;
-  if (sheetsKey) document.getElementById('sheetsKeyInput').value = sheetsKey;
 }
 function closeSettings(){
   document.getElementById('settingsPanel').classList.remove('open');
@@ -562,14 +561,12 @@ function validateKey(){
 }
 function saveKey(){
   const v = document.getElementById('apiKeyInput').value.trim();
-  const g = document.getElementById('sheetsKeyInput').value.trim();
   if (!v.startsWith('sk-ant-')) {
     showToast('Anthropic key must start with sk-ant-', true); return;
   }
   apiKey = v;
-  if (g) sheetsKey = g;
   closeSettings();
-  showToast('Keys saved ✓');
+  showToast('Key saved ✓');
   checkReady();
 }
 
