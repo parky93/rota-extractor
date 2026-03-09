@@ -439,6 +439,9 @@
   <button class="btn btn-green" id="downloadBtn" onclick="downloadIcal()" style="margin-bottom:10px">
     <span>📅</span> Download .ics File
   </button>
+  <button class="btn btn-primary" onclick="sendToSheets()" style="margin-bottom:10px">
+    <span>📊</span> Send to Google Sheets
+  </button>
   <button class="btn btn-orange" onclick="copySummary()" style="margin-bottom:10px">
     <span>📋</span> Copy Weekly Summary Text
   </button>
@@ -451,17 +454,24 @@
 <div class="settings-panel" id="settingsPanel" onclick="closeSettingsOutside(event)">
   <div class="settings-inner">
     <div class="settings-handle"></div>
-    <div class="settings-title">API Key</div>
+    <div class="settings-title">Settings</div>
+
     <label class="input-label">Anthropic API Key (starts with sk-ant-)</label>
     <input type="password" id="apiKeyInput" placeholder="sk-ant-api…" oninput="validateKey()">
     <div class="key-status" id="keyStatus"></div>
-    <div class="divider"></div>
-    <p style="font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:16px; font-family:var(--mono)">
-      Get your key at <strong style="color:var(--accent)">console.anthropic.com</strong><br>
-      Create account → API Keys → New Key<br>
-      ~1–2p per rota photo analysed
+    <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:8px 0 16px; font-family:var(--mono)">
+      console.anthropic.com → API Keys · ~2p per photo
     </p>
-    <button class="btn btn-primary" onclick="saveKey()">Save Key</button>
+
+    <div class="divider"></div>
+
+    <label class="input-label">Google Sheets API Key</label>
+    <input type="password" id="sheetsKeyInput" placeholder="AIza…">
+    <p style="font-size:12px; color:var(--muted); line-height:1.5; margin:8px 0 16px; font-family:var(--mono)">
+      console.cloud.google.com → APIs & Services → Credentials
+    </p>
+
+    <button class="btn btn-primary" onclick="saveKey()">Save All Keys</button>
   </div>
 </div>
 
@@ -471,10 +481,13 @@
 <script>
 // ── State ──────────────────────────────────────────────────────────────
 let apiKey = '';
+let sheetsKey = '';
 let imageBase64 = '';
 let imageType = '';
 let extractedText = '';
 let parsedEvents = [];
+const SHEET_ID = '1xRhkAn8z8O7lhWtZFqL8kYbes_icSr7G';
+const SHEET_NAME = 'DAILY LOG';
 
 // ── Set today's monday as default date ──
 (function(){
@@ -489,20 +502,34 @@ let parsedEvents = [];
 document.getElementById('fileInput').addEventListener('change', function(e){
   const file = e.target.files[0];
   if (!file) return;
-  imageType = file.type || 'image/jpeg';
+  imageType = 'image/jpeg';
   const reader = new FileReader();
   reader.onload = function(ev){
-    imageBase64 = ev.target.result.split(',')[1];
-    const zone = document.getElementById('uploadZone');
-    zone.classList.add('has-image');
-    zone.innerHTML = `
-      <img src="${ev.target.result}" alt="rota">
-      <div class="upload-overlay">
-        <div style="font-size:28px">✅</div>
-        <div class="upload-text" style="color:#4fc98a">Photo loaded</div>
-        <div class="upload-sub">Tap to change</div>
-      </div>`;
-    checkReady();
+    const img = new Image();
+    img.onload = function(){
+      const MAX_WIDTH = 1600;
+      let w = img.width, h = img.height;
+      if (w > MAX_WIDTH){ h = Math.round(h * MAX_WIDTH / w); w = MAX_WIDTH; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      let dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      if (dataUrl.length * 0.75 > 4.5 * 1024 * 1024)
+        dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+      imageBase64 = dataUrl.split(',')[1];
+      const sizeMB = (imageBase64.length * 0.75 / 1024 / 1024).toFixed(1);
+      const zone = document.getElementById('uploadZone');
+      zone.classList.add('has-image');
+      zone.innerHTML = `
+        <img src="${dataUrl}" alt="rota">
+        <div class="upload-overlay">
+          <div style="font-size:28px">✅</div>
+          <div class="upload-text" style="color:#4fc98a">Photo ready (${sizeMB}MB)</div>
+          <div class="upload-sub">Tap to change</div>
+        </div>`;
+      checkReady();
+    };
+    img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
 });
@@ -521,6 +548,7 @@ function checkReady(){
 function openSettings(){
   document.getElementById('settingsPanel').classList.add('open');
   if (apiKey) document.getElementById('apiKeyInput').value = apiKey;
+  if (sheetsKey) document.getElementById('sheetsKeyInput').value = sheetsKey;
 }
 function closeSettings(){
   document.getElementById('settingsPanel').classList.remove('open');
@@ -540,12 +568,14 @@ function validateKey(){
 }
 function saveKey(){
   const v = document.getElementById('apiKeyInput').value.trim();
+  const g = document.getElementById('sheetsKeyInput').value.trim();
   if (!v.startsWith('sk-ant-')) {
-    showToast('Key must start with sk-ant-', true); return;
+    showToast('Anthropic key must start with sk-ant-', true); return;
   }
   apiKey = v;
+  if (g) sheetsKey = g;
   closeSettings();
-  showToast('API key saved ✓');
+  showToast('Keys saved ✓');
   checkReady();
 }
 
@@ -628,7 +658,8 @@ async function extractShifts(){
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
         model: 'claude-opus-4-20250514',
@@ -651,8 +682,9 @@ async function extractShifts(){
     });
 
     if (!resp.ok){
-      const err = await resp.json();
-      throw new Error(err.error?.message || `API error ${resp.status}`);
+      let errMsg = `HTTP ${resp.status}`;
+      try { const err = await resp.json(); errMsg = err.error?.message || errMsg; } catch(e){}
+      throw new Error(errMsg);
     }
 
     const data = await resp.json();
@@ -661,7 +693,7 @@ async function extractShifts(){
 
   } catch(e){
     document.getElementById('outputBox').innerHTML =
-      `<span style="color:var(--red)">❌ Error: ${e.message}</span>`;
+      `<span style="color:var(--red)">❌ ${e.message}</span>\n\n<span style="color:var(--muted);font-size:12px">Check: API key saved? Key starts with sk-ant-? Network connected?</span>`;
     document.getElementById('confirmBtn').style.display = 'none';
   }
 }
@@ -860,7 +892,69 @@ function copySummary(){
     .catch(() => showToast('Copy failed — try manual select', true));
 }
 
-// ── Navigation ─────────────────────────────────────────────────────────
+// ── Send to Google Sheets ───────────────────────────────────────────────
+async function sendToSheets(){
+  if (!sheetsKey){ showToast('Add Google Sheets API key in ⚙️ settings', true); return; }
+  if (!parsedEvents.length){ showToast('No events to send', true); return; }
+
+  showToast('Sending to Google Sheets…');
+
+  // Build rows to append — matching DAILY LOG columns A-O
+  const rows = parsedEvents.map(ev => {
+    const dateStr = ev.date.toLocaleDateString('en-GB');
+    const day = ev.date.toLocaleDateString('en-GB', { weekday: 'short' });
+    const mon = new Date(ev.date);
+    mon.setDate(ev.date.getDate() - ((ev.date.getDay() + 6) % 7));
+    const wkStr = mon.toLocaleDateString('en-GB');
+    const hrs = ev.hrs;
+    const sleeps = ev.isSleep ? 1 : 0;
+    const hourlyPay = (hrs * 12.54).toFixed(2);
+    const sleepPay  = (sleeps * 70.50).toFixed(2);
+    const totalPay  = (parseFloat(hourlyPay) + parseFloat(sleepPay)).toFixed(2);
+
+    let desc = '';
+    if (ev.isDiploma) desc = 'Diploma';
+    else if (ev.isTraining) desc = 'Training';
+    else if (ev.isSleep) desc = 'Sleep-in';
+
+    return [
+      dateStr,       // A Date
+      day,           // B Day
+      wkStr,         // C Week Commencing
+      'Auto',        // D Source
+      ev.title,      // E Shift Category
+      desc,          // F Description
+      ev.startT,     // G Start Time
+      ev.endT,       // H End Time
+      hrs,           // I Hours Worked
+      sleeps,        // J Sleeps
+      12.54,         // K Hourly Rate
+      hourlyPay,     // L Hourly Pay
+      70.50,         // M Sleep Rate
+      sleepPay,      // N Sleep Pay
+      totalPay       // O Total Pay
+    ];
+  });
+
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_NAME + '!A:O')}:append?valueInputOption=USER_ENTERED&key=${sheetsKey}`;
+
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: rows })
+    });
+    if (!resp.ok){
+      const err = await resp.json();
+      throw new Error(err.error?.message || `HTTP ${resp.status}`);
+    }
+    showToast(`✓ ${rows.length} rows added to Google Sheets!`);
+  } catch(e){
+    showToast(`Sheets error: ${e.message}`, true);
+  }
+}
+
+
 function showStep(n){
   ['step1','step2','step3'].forEach((id,i) => {
     document.getElementById(id).classList.toggle('visible', i+1===n);
